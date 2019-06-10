@@ -140,12 +140,26 @@ func NewTimeline(stream *Stream, labelFunc func(*Window) string) *Timeline {
 	}
 	var active, visible, other []*Range
 	var lastActive *Range
+    var lastSnap * time.Time
+    var staleStream bool = false
 	var lastVisible, lastOther = make(map[string]*Range), make(map[string]*Range)
 	for _, snap := range stream.Snapshots {
 		windows := make(map[int64]*Window)
 		for _, win := range snap.Windows {
 			windows[win.ID] = win
 		}
+
+        staleStream = false
+        var interval float64 = 60 // expected intervals between snapshots
+
+        // if more than 5 intervals are missed, assume we've gone to sleep or
+        // something, and don't connect previous snapshots to this one
+        // i.e. the stream must have gone stale
+        if lastSnap != nil && snap.Time.Sub(*lastSnap).Seconds() > interval*5 {
+            lastActive = nil
+            staleStream = true
+        }
+        lastSnap = &snap.Time
 
 		{
 			if win := windows[snap.Active]; win != nil {
@@ -165,16 +179,18 @@ func NewTimeline(stream *Stream, labelFunc func(*Window) string) *Timeline {
 			}
 		}
 
-		for _, prevRange := range lastVisible {
-			prevRange.End = snap.Time
-		}
+        if !staleStream {
+            for _, prevRange := range lastVisible {
+                prevRange.End = snap.Time
+            }
+        }
 		nextVisible := make(map[string]*Range)
 		for _, v := range snap.Visible {
 			var winLabel string
 			if win := windows[v]; win != nil {
 				winLabel = labelFunc(win)
 			}
-			if existRng, exists := lastVisible[winLabel]; !exists {
+			if existRng, exists := lastVisible[winLabel]; !exists || staleStream {
 				newRange := &Range{Label: winLabel, Start: snap.Time, End: snap.Time}
 				nextVisible[winLabel] = newRange
 				visible = append(visible, newRange)
@@ -184,13 +200,15 @@ func NewTimeline(stream *Stream, labelFunc func(*Window) string) *Timeline {
 		}
 		lastVisible = nextVisible
 
-		for _, prevRange := range lastOther {
-			prevRange.End = snap.Time
-		}
+        if !staleStream {
+            for _, prevRange := range lastOther {
+                prevRange.End = snap.Time
+            }
+        }
 		nextOther := make(map[string]*Range)
 		for _, win := range snap.Windows {
 			winLabel := labelFunc(win)
-			if existRng, exists := lastOther[winLabel]; !exists {
+			if existRng, exists := lastOther[winLabel]; !exists || staleStream {
 				newRange := &Range{Label: winLabel, Start: snap.Time, End: snap.Time}
 				nextOther[winLabel] = newRange
 				other = append(other, newRange)
