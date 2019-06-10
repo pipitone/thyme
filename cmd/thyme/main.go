@@ -8,7 +8,7 @@ import (
 	"runtime"
 
 	"github.com/jessevdk/go-flags"
-	"github.com/sourcegraph/thyme"
+	"thyme"
 )
 
 var CLI = flags.NewNamedParser("thyme", flags.PrintErrors|flags.PassDoubleDash)
@@ -127,6 +127,7 @@ func (c *ShowCmd) Execute(args []string) error {
 		if err := json.NewDecoder(f).Decode(&stream); err != nil {
 			return err
 		}
+
 		switch c.What {
 		case "stats":
 			if err := thyme.Stats(&stream); err != nil {
