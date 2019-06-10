@@ -16,15 +16,16 @@ const maxNumberOfBars = 30
 // 1. A timeline of applications active, visible, and open
 // 2. A timeline of windows active, visible, and open
 // 3. A barchart of applications most often active, visible, and open
-func Stats(stream *Stream) error {
-	tlFine := NewTimeline(stream, func(w *Window) string { return w.Name })
-	tlCoarse := NewTimeline(stream, appID)
+func Stats(stream *Stream, pollInt *time.Duration, JsURL *string) error {
+	tlFine := NewTimeline(stream, pollInt, func(w *Window) string { return w.Name })
+	tlCoarse := NewTimeline(stream, pollInt, appID)
 	agg := NewAggTime(stream, appID)
 
 	if err := statsTmpl.Execute(os.Stdout, &statsPage{
 		Fine:   tlFine,
 		Coarse: tlCoarse,
 		Agg:    agg,
+        JsURL: JsURL,
 	}); err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ type Range struct {
 // a given Window. If you're tracking events by app, this ID should
 // reflect the identity of the window's application. If you're
 // tracking events by window name, the ID should be the window name.
-func NewTimeline(stream *Stream, labelFunc func(*Window) string) *Timeline {
+func NewTimeline(stream *Stream, pollInt *time.Duration, labelFunc func(*Window) string) *Timeline {
 	if len(stream.Snapshots) == 0 {
 		return nil
 	}
@@ -150,7 +151,7 @@ func NewTimeline(stream *Stream, labelFunc func(*Window) string) *Timeline {
 		}
 
         staleStream = false
-        var interval float64 = 60 // expected intervals between snapshots
+        var interval float64 = pollInt.Seconds() // expected intervals between snapshots
 
         // if more than 5 intervals are missed, assume we've gone to sleep or
         // something, and don't connect previous snapshots to this one
@@ -236,6 +237,7 @@ type statsPage struct {
 	Fine   *Timeline
 	Coarse *Timeline
 	Agg    *AggTime
+    JsURL  *string
 }
 
 // statsTmpl is the HTML template for the page rendered by the `Stats`
@@ -254,7 +256,7 @@ var statsTmpl = template.Must(template.New("").Funcs(map[string]interface{}{
 		}
 	</style>
 
-    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript" src="{{.JsURL}}"></script>
     <script type="text/javascript">
       google.charts.load('current', {'packages':['corechart', 'bar', 'timeline']});
 	</script>

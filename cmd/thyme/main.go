@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+    "time"
 
 	"github.com/jessevdk/go-flags"
 	"thyme"
@@ -103,6 +104,8 @@ func (c *TrackCmd) Execute(args []string) error {
 type ShowCmd struct {
 	In   string `long:"in" short:"i" description:"input file"`
 	What string `long:"what" short:"w" description:"what to show {list,stats}" default:"list"`
+	Poll string `long:"poll" short:"p" description:"Polling duration" default:"1m"`
+    JsURL string `long:"jsurl" short:"j" description:"JS URL for charting" default:"https://gstatic.com/charts/loader.js"`
 }
 
 var showCmd ShowCmd
@@ -128,9 +131,14 @@ func (c *ShowCmd) Execute(args []string) error {
 			return err
 		}
 
+        pollInt, err := time.ParseDuration(c.Poll)
+        if err !=nil {
+            return err
+        }
+
 		switch c.What {
 		case "stats":
-			if err := thyme.Stats(&stream); err != nil {
+			if err := thyme.Stats(&stream, &pollInt, &c.JsURL); err != nil {
 				return err
 			}
 		case "list":
